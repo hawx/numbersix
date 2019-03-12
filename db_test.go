@@ -7,80 +7,28 @@ import (
 	"hawx.me/code/assert"
 )
 
-func TestGet(t *testing.T) {
-	assert := assert.New(t)
-
-	db, _ := Open("file::memory:")
-	assert.Nil(db.Insert("john@doe.com", "age", 25))
-	assert.Nil(db.Insert("jane@doe.com", "age", 23))
-
-	_, ok := db.Get("what", "age")
-	assert.False(ok)
-	_, ok = db.Get("john@doe.com", "what")
-	assert.False(ok)
-
-	triple, ok := db.Get("john@doe.com", "age")
-	assert.True(ok)
-
-	var age int
-	assert.Nil(triple.Value(&age))
-	assert.Equal(25, age)
-}
-
-func TestList(t *testing.T) {
-	assert := assert.New(t)
-
-	db, _ := Open("file::memory:")
-	assert.Nil(db.Insert("john@doe.com", "age", 25))
-	assert.Nil(db.Insert("jane@doe.com", "age", 23))
-
-	type Person struct {
-		Email string
-		Age   int
+func insertMap(db *DB, id string, properties map[string][]interface{}) error {
+	for key, value := range properties {
+		if err := db.SetMany(id, key, value); err != nil {
+			return err
+		}
 	}
 
-	triples, err := db.List(All())
-	assert.Nil(err)
+	return nil
+}
 
-	var people []Person
+func triplesToMap(triples []Triple) (map[string][]interface{}, error) {
+	properties := map[string][]interface{}{}
 	for _, triple := range triples {
-		var person Person
-		person.Email = triple.Subject
-		assert.Nil(triple.Value(&person.Age))
-		people = append(people, person)
+		var value interface{}
+		if err := triple.Value(&value); err != nil {
+			return properties, err
+		}
+
+		properties[triple.Predicate] = append(properties[triple.Predicate], value)
 	}
 
-	if assert.Len(people, 2) {
-		assert.Equal("jane@doe.com", people[0].Email)
-		assert.Equal(23, people[0].Age)
-
-		assert.Equal("john@doe.com", people[1].Email)
-		assert.Equal(25, people[1].Age)
-	}
-}
-
-func TestInsertVariadic(t *testing.T) {
-	assert := assert.New(t)
-
-	db, _ := Open("file::memory:")
-	assert.Nil(db.Insert("object-1", "size", 5, 2, "what", 4))
-
-	triples, err := db.List(About("object-1"))
-	assert.Nil(err)
-
-	if assert.Len(triples, 4) {
-		var s string
-		assert.Nil(triples[0].Value(&s))
-		assert.Equal("what", s)
-
-		var i int
-		assert.Nil(triples[1].Value(&i))
-		assert.Equal(2, i)
-		assert.Nil(triples[2].Value(&i))
-		assert.Equal(4, i)
-		assert.Nil(triples[3].Value(&i))
-		assert.Equal(5, i)
-	}
+	return properties, nil
 }
 
 func TestMicroformat(t *testing.T) {
@@ -103,28 +51,19 @@ func TestMicroformat(t *testing.T) {
 
 	db, _ := Open("file::memory:")
 
-	assert.Nil(db.InsertMany(postID, "type", microformat.Type))
-	for key, value := range microformat.Properties {
-		assert.Nil(db.InsertMany(postID, "property."+key, value))
-	}
+	assert.Nil(db.SetMany(postID, "type", microformat.Type))
+	assert.Nil(insertMap(db, postID, microformat.Properties))
 
 	triples, err := db.List(About(postID))
 	assert.Nil(err)
 
-	properties := map[string][]interface{}{}
-	for _, triple := range triples {
-		key := triple.Predicate
-
-		var value interface{}
-		assert.Nil(triple.Value(&value))
-
-		properties[key] = append(properties[key], value)
-	}
+	properties, err := triplesToMap(triples)
+	assert.Nil(err)
 
 	assert.Equal("h-entry", properties["type"][0])
-	assert.Equal("test content", properties["property.content"][0])
-	assert.Equal("cool", properties["property.category"][0])
-	assert.Equal("tag", properties["property.category"][1])
+	assert.Equal("test content", properties["content"][0])
+	assert.Equal("cool", properties["category"][0])
+	assert.Equal("tag", properties["category"][1])
 }
 
 func TestPossibleUsage(t *testing.T) {
@@ -133,8 +72,8 @@ func TestPossibleUsage(t *testing.T) {
 	db, _ := Open("file::memory:")
 
 	insertPost := func(postID, title string, createdAt time.Time) {
-		assert.Nil(db.Insert(postID, "title", title))
-		assert.Nil(db.Insert(postID, "createdAt", createdAt))
+		assert.Nil(db.Set(postID, "title", title))
+		assert.Nil(db.Set(postID, "createdAt", createdAt))
 	}
 
 	insertPost("1", "My first post", time.Date(2019, time.January, 1, 12, 0, 0, 0, time.UTC))

@@ -7,6 +7,64 @@ import (
 	"hawx.me/code/assert"
 )
 
+func BenchmarkSimpleSqliteGet(b *testing.B) {
+	db, _ := Open("file::memory:")
+	db.Set("a", "b", "c")
+
+	for i := 0; i < b.N; i++ {
+		rows, _ := db.db.Query("SELECT subject, predicate, value FROM triples WHERE subject = 'a'")
+		defer rows.Close()
+
+		for rows.Next() {
+			var subject, predicate, value string
+			rows.Scan(&subject, &predicate, &value)
+		}
+	}
+}
+
+func BenchmarkListAbout(b *testing.B) {
+	db, _ := Open("file::memory:")
+	db.Set("a", "b", "c")
+
+	for i := 0; i < b.N; i++ {
+		triples, _ := db.List(About("a"))
+		var s string
+		triples[0].Value(&s)
+	}
+}
+
+func TestList(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+	assert.Nil(db.Set("john@doe.com", "age", 25))
+	assert.Nil(db.Set("jane@doe.com", "age", 23))
+
+	type Person struct {
+		Email string
+		Age   int
+	}
+
+	triples, err := db.List(All())
+	assert.Nil(err)
+
+	var people []Person
+	for _, triple := range triples {
+		var person Person
+		person.Email = triple.Subject
+		assert.Nil(triple.Value(&person.Age))
+		people = append(people, person)
+	}
+
+	if assert.Len(people, 2) {
+		assert.Equal("jane@doe.com", people[0].Email)
+		assert.Equal(23, people[0].Age)
+
+		assert.Equal("john@doe.com", people[1].Email)
+		assert.Equal(25, people[1].Age)
+	}
+}
+
 type pair struct{ s, p string }
 
 func assertTriples(t *testing.T, triples []Triple, pairs []pair) bool {
@@ -32,10 +90,10 @@ func TestQuery(t *testing.T) {
 
 	db, _ := Open("file::memory:")
 
-	db.Insert("1", "name", "John")
-	db.Insert("1", "age", 25)
-	db.Insert("2", "name", "Jane")
-	db.Insert("2", "age", 23)
+	db.Set("1", "name", "John")
+	db.Set("1", "age", 25)
+	db.Set("2", "name", "Jane")
+	db.Set("2", "age", 23)
 
 	triples, err := db.List(All())
 	assert.Nil(err)
@@ -54,10 +112,10 @@ func TestQueryAbout(t *testing.T) {
 
 	db, _ := Open("file::memory:")
 
-	db.Insert("1", "name", "John")
-	db.Insert("1", "age", 25)
-	db.Insert("2", "name", "Jane")
-	db.Insert("2", "age", 23)
+	db.Set("1", "name", "John")
+	db.Set("1", "age", 25)
+	db.Set("2", "name", "Jane")
+	db.Set("2", "age", 23)
 
 	triples, err := db.List(About("1"))
 	assert.Nil(err)
@@ -72,32 +130,32 @@ func TestQueryAbout(t *testing.T) {
 func TestOrdered(t *testing.T) {
 	db, _ := Open("file::memory:")
 
-	db.Insert("2", "age", 25)
-	db.Insert("2", "tag", "cool")
+	db.Set("2", "age", 25)
+	db.Set("2", "tag", "cool")
 
-	db.Insert("4", "age", 19)
+	db.Set("4", "age", 19)
 
-	db.Insert("8", "age", 18)
-	db.Insert("8", "tag", "uncool")
+	db.Set("8", "age", 18)
+	db.Set("8", "tag", "uncool")
 
-	db.Insert("9", "age", 17)
-	db.Insert("9", "tag", "cool")
-	db.Insert("9", "tag", "cooler")
+	db.Set("9", "age", 17)
+	db.Set("9", "tag", "cool")
+	db.Set("9", "tag", "cooler")
 
-	db.Insert("7", "age", 22)
-	db.Insert("7", "tag", "cool")
+	db.Set("7", "age", 22)
+	db.Set("7", "tag", "cool")
 
-	db.Insert("3", "age", 21)
-	db.Insert("3", "tag", "uncool")
+	db.Set("3", "age", 21)
+	db.Set("3", "tag", "uncool")
 
-	db.Insert("1", "age", 24)
+	db.Set("1", "age", 24)
 
-	db.Insert("5", "age", 23)
+	db.Set("5", "age", 23)
 
-	db.Insert("6", "age", 20)
-	db.Insert("6", "tag", "who")
-	db.Insert("6", "tag", "cooler")
-	db.Insert("6", "tag", "uncool")
+	db.Set("6", "age", 20)
+	db.Set("6", "tag", "who")
+	db.Set("6", "tag", "cooler")
+	db.Set("6", "tag", "uncool")
 
 	t.Run("After", func(t *testing.T) {
 		triples, err := db.List(After("age", 22))
@@ -192,40 +250,40 @@ func TestAfterWhereLimit(t *testing.T) {
 
 	db, _ := Open("file::memory:")
 
-	db.Insert("0", "title", "A null post")
-	db.Insert("0", "tag", "good")
-	db.Insert("0", "published", time.Date(2019, time.January, 3, 12, 0, 0, 0, time.UTC))
-	db.Insert("0", "content", "<nope>")
+	db.Set("0", "title", "A null post")
+	db.Set("0", "tag", "good")
+	db.Set("0", "published", time.Date(2019, time.January, 3, 12, 0, 0, 0, time.UTC))
+	db.Set("0", "content", "<nope>")
 
 	// out of order
-	db.Insert("1", "title", "A post")
-	db.Insert("1", "tag", "good")
-	db.Insert("1", "tag", "other")
-	db.Insert("1", "published", time.Date(2019, time.January, 7, 12, 0, 0, 0, time.UTC))
-	db.Insert("1", "content", "Hey this is a ...")
+	db.Set("1", "title", "A post")
+	db.Set("1", "tag", "good")
+	db.Set("1", "tag", "other")
+	db.Set("1", "published", time.Date(2019, time.January, 7, 12, 0, 0, 0, time.UTC))
+	db.Set("1", "content", "Hey this is a ...")
 
-	db.Insert("2", "title", "Another post")
-	db.Insert("2", "tag", "good")
-	db.Insert("2", "published", time.Date(2019, time.January, 5, 12, 0, 0, 0, time.UTC))
-	db.Insert("2", "content", "Hey this is another ...")
+	db.Set("2", "title", "Another post")
+	db.Set("2", "tag", "good")
+	db.Set("2", "published", time.Date(2019, time.January, 5, 12, 0, 0, 0, time.UTC))
+	db.Set("2", "content", "Hey this is another ...")
 
 	// no tag
-	db.Insert("3", "title", "A bad post")
-	db.Insert("3", "tag", "bad")
-	db.Insert("3", "published", time.Date(2019, time.January, 8, 12, 0, 0, 0, time.UTC))
-	db.Insert("3", "content", "Bad ...")
+	db.Set("3", "title", "A bad post")
+	db.Set("3", "tag", "bad")
+	db.Set("3", "published", time.Date(2019, time.January, 8, 12, 0, 0, 0, time.UTC))
+	db.Set("3", "content", "Bad ...")
 
 	// too old
-	db.Insert("4", "title", "A good old post")
-	db.Insert("4", "tag", "good")
-	db.Insert("4", "published", time.Date(2018, time.January, 8, 12, 0, 0, 0, time.UTC))
-	db.Insert("4", "content", "Old ...")
+	db.Set("4", "title", "A good old post")
+	db.Set("4", "tag", "good")
+	db.Set("4", "published", time.Date(2018, time.January, 8, 12, 0, 0, 0, time.UTC))
+	db.Set("4", "content", "Old ...")
 
 	// after date we are searching for
-	db.Insert("5", "title", "A good new post")
-	db.Insert("5", "tag", "good")
-	db.Insert("5", "published", time.Date(2019, time.January, 18, 12, 0, 0, 0, time.UTC))
-	db.Insert("5", "content", "New ...")
+	db.Set("5", "title", "A good new post")
+	db.Set("5", "tag", "good")
+	db.Set("5", "published", time.Date(2019, time.January, 18, 12, 0, 0, 0, time.UTC))
+	db.Set("5", "content", "New ...")
 
 	triples, err := db.List(
 		Before("published", time.Date(2019, time.January, 10, 0, 0, 0, 0, time.UTC)).

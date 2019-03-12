@@ -7,11 +7,11 @@ import (
 	"hawx.me/code/assert"
 )
 
-func TestDelete(t *testing.T) {
+func TestDeleteValue(t *testing.T) {
 	assert := assert.New(t)
 
 	db, _ := Open("file::memory:")
-	assert.Nil(db.Insert("abc", "label", "test", 1, time.Date(2019, time.January, 1, 12, 0, 0, 0, time.UTC), true))
+	assert.Nil(db.Set("abc", "label", "test", 1, time.Date(2019, time.January, 1, 12, 0, 0, 0, time.UTC), true))
 
 	triples, err := db.List(All())
 	assert.Nil(err)
@@ -34,8 +34,8 @@ func TestDelete(t *testing.T) {
 		assert.Equal(true, b)
 	}
 
-	assert.Nil(db.Delete("abc", "label", 1))
-	assert.Nil(db.Delete("abc", "label", time.Date(2019, time.January, 1, 12, 0, 0, 0, time.UTC)))
+	assert.Nil(db.DeleteValue("abc", "label", 1))
+	assert.Nil(db.DeleteValue("abc", "label", time.Date(2019, time.January, 1, 12, 0, 0, 0, time.UTC)))
 
 	triples, err = db.List(All())
 	assert.Nil(err)
@@ -51,13 +51,56 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+func TestDeletePredicate(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+	assert.Nil(db.Set("abc", "label", "test"))
+	assert.Nil(db.Set("abc", "tag", "test"))
+	assert.Nil(db.Set("abc", "tag", "other"))
+	assert.Nil(db.Set("def", "label", "test"))
+	assert.Nil(db.Set("def", "tag", "test"))
+
+	triples, err := db.List(All())
+	assert.Nil(err)
+
+	if assert.Len(triples, 5) {
+		assert.Equal("abc", triples[0].Subject)
+		assert.Equal("label", triples[0].Predicate)
+		assert.Equal("abc", triples[1].Subject)
+		assert.Equal("tag", triples[1].Predicate)
+		assert.Equal("abc", triples[2].Subject)
+		assert.Equal("tag", triples[2].Predicate)
+
+		assert.Equal("def", triples[3].Subject)
+		assert.Equal("label", triples[3].Predicate)
+		assert.Equal("def", triples[4].Subject)
+		assert.Equal("tag", triples[4].Predicate)
+	}
+
+	assert.Nil(db.DeletePredicate("abc", "tag"))
+
+	triples, err = db.List(All())
+	assert.Nil(err)
+
+	if assert.Len(triples, 3) {
+		assert.Equal("abc", triples[0].Subject)
+		assert.Equal("label", triples[0].Predicate)
+
+		assert.Equal("def", triples[1].Subject)
+		assert.Equal("label", triples[1].Predicate)
+		assert.Equal("def", triples[2].Subject)
+		assert.Equal("tag", triples[2].Predicate)
+	}
+}
+
 func TestDeleteSubject(t *testing.T) {
 	assert := assert.New(t)
 
 	db, _ := Open("file::memory:")
-	assert.Nil(db.Insert("abc", "label", "test"))
-	assert.Nil(db.Insert("def", "label", "test"))
-	assert.Nil(db.Insert("ghi", "label", "test"))
+	assert.Nil(db.Set("abc", "label", "test"))
+	assert.Nil(db.Set("def", "label", "test"))
+	assert.Nil(db.Set("ghi", "label", "test"))
 
 	triples, err := db.List(All())
 	assert.Nil(err)
