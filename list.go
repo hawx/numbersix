@@ -2,7 +2,7 @@ package numbersix
 
 // List returns all triples that match the query provided.
 func (d *DB) List(query Query) (results []Triple, err error) {
-	qs, args := query.build()
+	qs, args := query.build(d.name)
 
 	rows, err := d.db.Query(qs, args...)
 	if err != nil {
@@ -23,7 +23,7 @@ func (d *DB) List(query Query) (results []Triple, err error) {
 
 // Query defines conditions for triples that List should return.
 type Query interface {
-	build() (string, []interface{})
+	build(name string) (string, []interface{})
 }
 
 type AllQuery struct{}
@@ -33,8 +33,8 @@ func All() *AllQuery {
 	return &AllQuery{}
 }
 
-func (q *AllQuery) build() (qs string, args []interface{}) {
-	return "SELECT subject, predicate, value FROM triples ORDER BY subject, predicate", []interface{}{}
+func (q *AllQuery) build(name string) (qs string, args []interface{}) {
+	return "SELECT subject, predicate, value FROM " + name + " ORDER BY subject, predicate", []interface{}{}
 }
 
 type AboutQuery struct {
@@ -46,8 +46,8 @@ func About(subject string) *AboutQuery {
 	return &AboutQuery{subject: subject}
 }
 
-func (q *AboutQuery) build() (qs string, args []interface{}) {
-	return "SELECT subject, predicate, value FROM triples WHERE subject = ? ORDER BY predicate", []interface{}{q.subject}
+func (q *AboutQuery) build(name string) (qs string, args []interface{}) {
+	return "SELECT subject, predicate, value FROM " + name + " WHERE subject = ? ORDER BY predicate", []interface{}{q.subject}
 }
 
 type whereClause struct{ predicate, value string }
@@ -118,7 +118,7 @@ func (q *OrderedQuery) Where(predicate string, value interface{}) *OrderedQuery 
 	return q
 }
 
-func (q *OrderedQuery) build() (qs string, args []interface{}) {
+func (q *OrderedQuery) build(name string) (qs string, args []interface{}) {
 	var subjects string
 	if len(q.wheres) > 0 {
 		subjects = "subjects(found) AS ( "
@@ -127,7 +127,7 @@ func (q *OrderedQuery) build() (qs string, args []interface{}) {
 			if i > 0 {
 				subjects += " INTERSECT "
 			}
-			subjects += "SELECT DISTINCT subject FROM triples WHERE predicate = ? AND value = ?"
+			subjects += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ? AND value = ?"
 			args = append(args, where.predicate, where.value)
 		}
 
@@ -136,7 +136,7 @@ func (q *OrderedQuery) build() (qs string, args []interface{}) {
 
 	var orderedSubjects string
 	{
-		orderedSubjects = "ordered_subjects(found, ordering) AS ( SELECT DISTINCT subject, value FROM triples "
+		orderedSubjects = "ordered_subjects(found, ordering) AS ( SELECT DISTINCT subject, value FROM " + name + " "
 		if len(q.wheres) > 0 {
 			orderedSubjects += "INNER JOIN subjects ON subject = subjects.found "
 		}
@@ -158,7 +158,7 @@ func (q *OrderedQuery) build() (qs string, args []interface{}) {
 	qs = "SELECT subject, predicate, value FROM ( WITH " +
 		subjects +
 		orderedSubjects +
-		`SELECT subject, predicate, value, ordering FROM triples
+		`SELECT subject, predicate, value, ordering FROM ` + name + `
 INNER JOIN ordered_subjects ON subject = ordered_subjects.found
 ORDER BY ordering`
 	if !q.ascending {

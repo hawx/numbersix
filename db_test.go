@@ -1,11 +1,40 @@
 package numbersix
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 
 	"hawx.me/code/assert"
 )
+
+func TestFor(t *testing.T) {
+	assert := assert.New(t)
+
+	sqlite, _ := sql.Open("sqlite3", "file::memory:")
+
+	a, err := For(sqlite, "a")
+	assert.Nil(err)
+
+	b, err := For(sqlite, "b")
+	assert.Nil(err)
+
+	assert.Nil(a.Set("x", "y", "z"))
+	assert.Nil(b.Set("x", "y", "q"))
+
+	atriples, err := a.List(About("x"))
+	assert.Nil(err)
+	btriples, err := b.List(About("x"))
+	assert.Nil(err)
+
+	var avalue string
+	atriples[0].Value(&avalue)
+	assert.Equal("z", avalue)
+
+	var bvalue string
+	btriples[0].Value(&bvalue)
+	assert.Equal("q", bvalue)
+}
 
 func insertMap(db *DB, id string, properties map[string][]interface{}) error {
 	for key, value := range properties {

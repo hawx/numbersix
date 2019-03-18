@@ -9,7 +9,8 @@ import (
 
 // DB stores triples.
 type DB struct {
-	db *sql.DB
+	db   *sql.DB
+	name string
 }
 
 // Open returns a new triple store DB writing to a sqlite database at the path
@@ -20,12 +21,22 @@ func Open(path string) (*DB, error) {
 		return nil, err
 	}
 
-	return &DB{db: sqlite}, migrate(sqlite)
+	return For(sqlite, "triples")
 }
 
-func migrate(db *sql.DB) error {
+// For returns a triple store wrapping the sql database table named.
+func For(db *sql.DB, name string) (*DB, error) {
+	return &DB{db: db, name: name}, migrate(db, name)
+}
+
+// Close the underlying sqlite database.
+func (d *DB) Close() error {
+	return d.db.Close()
+}
+
+func migrate(db *sql.DB, name string) error {
 	_, err := db.Exec(`
-    CREATE TABLE IF NOT EXISTS triples (
+    CREATE TABLE IF NOT EXISTS ` + name + ` (
       subject   TEXT,
       predicate TEXT,
       value     TEXT,

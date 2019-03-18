@@ -17,7 +17,7 @@ func (d *DB) Set(subject, predicate string, value interface{}, more ...interface
 		return err
 	}
 
-	_, err = d.db.Exec("INSERT OR REPLACE INTO triples(subject, predicate, value) VALUES(?, ?, ?)",
+	_, err = d.db.Exec("INSERT OR REPLACE INTO "+d.name+"(subject, predicate, value) VALUES(?, ?, ?)",
 		subject,
 		predicate,
 		v)
@@ -39,7 +39,7 @@ func (d *DB) SetMany(subject, predicate string, values interface{}) error {
 	if err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare("INSERT OR REPLACE INTO triples(subject, predicate, value) VALUES(?, ?, ?)")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO " + d.name + "(subject, predicate, value) VALUES(?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (d *DB) SetProperties(subject string, properties map[string][]interface{}) 
 	if err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare("INSERT OR REPLACE INTO triples(subject, predicate, value) VALUES(?, ?, ?)")
+	stmt, err := tx.Prepare("INSERT OR REPLACE INTO " + d.name + "(subject, predicate, value) VALUES(?, ?, ?)")
 	if err != nil {
 		return err
 	}

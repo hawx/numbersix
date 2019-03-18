@@ -8,7 +8,7 @@ func (d *DB) DeleteValue(subject, predicate string, value interface{}) error {
 		return err
 	}
 
-	_, err = d.db.Exec("DELETE FROM triples WHERE subject = ? AND predicate = ? AND value = ?",
+	_, err = d.db.Exec("DELETE FROM "+d.name+" WHERE subject = ? AND predicate = ? AND value = ?",
 		subject,
 		predicate,
 		v)
@@ -19,7 +19,7 @@ func (d *DB) DeleteValue(subject, predicate string, value interface{}) error {
 // DeletePredicate removes all triples with the subject and predicate given. If
 // none exist, then this does nothing.
 func (d *DB) DeletePredicate(subject, predicate string) error {
-	_, err := d.db.Exec("DELETE FROM triples WHERE subject = ? AND predicate = ?",
+	_, err := d.db.Exec("DELETE FROM "+d.name+" WHERE subject = ? AND predicate = ?",
 		subject,
 		predicate)
 
@@ -29,7 +29,7 @@ func (d *DB) DeletePredicate(subject, predicate string) error {
 // DeleteSubject removes all triples for the subject given. If none exist, then
 // this does nothing.
 func (d *DB) DeleteSubject(subject string) error {
-	_, err := d.db.Exec("DELETE FROM triples WHERE subject = ?",
+	_, err := d.db.Exec("DELETE FROM "+d.name+" WHERE subject = ?",
 		subject)
 
 	return err
