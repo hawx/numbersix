@@ -52,7 +52,7 @@ func (q *AboutQuery) build(name string) (qs string, args []interface{}) {
 
 type whereClause struct{ predicate, value string }
 
-type OrderedQuery struct {
+type BoundOrderedQuery struct {
 	predicate, value string
 	ascending        bool
 	limitCount       int
@@ -77,10 +77,10 @@ type OrderedQuery struct {
 //    ("c", "name", "Kevin")
 //    ("b", "age", 24)
 //    ("b", "name", "Jane")
-func After(predicate string, value interface{}) *OrderedQuery {
+func After(predicate string, value interface{}) *BoundOrderedQuery {
 	v, _ := marshal(value)
 
-	return &OrderedQuery{
+	return &BoundOrderedQuery{
 		predicate: predicate,
 		value:     v,
 		ascending: true,
@@ -89,10 +89,10 @@ func After(predicate string, value interface{}) *OrderedQuery {
 
 // Before is like After, but the triples returned will have values less than the
 // value given, and will be ordered descending on the predicate.
-func Before(predicate string, value interface{}) *OrderedQuery {
+func Before(predicate string, value interface{}) *BoundOrderedQuery {
 	v, _ := marshal(value)
 
-	return &OrderedQuery{
+	return &BoundOrderedQuery{
 		predicate: predicate,
 		value:     v,
 	}
@@ -100,9 +100,91 @@ func Before(predicate string, value interface{}) *OrderedQuery {
 
 // Limit adds a condition to the query so that only triples for count subjects
 // are returned.
-func (q *OrderedQuery) Limit(count int) *OrderedQuery {
+func (q *BoundOrderedQuery) Limit(count int) *BoundOrderedQuery {
 	q.limitCount = count
 	return q
+}
+
+// Where adds a condition to the query so that only triples for subjects that
+// have the predicate and value are returned.
+func (q *BoundOrderedQuery) Where(predicate string, value interface{}) *BoundOrderedQuery {
+	v, _ := marshal(value)
+
+	q.wheres = append(q.wheres, whereClause{
+		predicate: predicate,
+		value:     v,
+	})
+
+	return q
+}
+
+func (q *BoundOrderedQuery) build(name string) (qs string, args []interface{}) {
+	var subjects string
+	if len(q.wheres) > 0 {
+		subjects = "subjects(found) AS ( "
+
+		for i, where := range q.wheres {
+			if i > 0 {
+				subjects += " INTERSECT "
+			}
+			subjects += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ? AND value = ?"
+			args = append(args, where.predicate, where.value)
+		}
+
+		subjects += " ), "
+	}
+
+	var orderedSubjects string
+	{
+		orderedSubjects = "ordered_subjects(found, ordering) AS ( SELECT DISTINCT subject, value FROM " + name + " "
+		if len(q.wheres) > 0 {
+			orderedSubjects += "INNER JOIN subjects ON subject = subjects.found "
+		}
+		if q.ascending {
+			orderedSubjects += "WHERE predicate = ? AND value > ? ORDER BY value "
+		} else {
+			orderedSubjects += "WHERE predicate = ? AND value < ? ORDER BY value DESC "
+		}
+		args = append(args, q.predicate, q.value)
+
+		if q.limitCount > 0 {
+			orderedSubjects += "LIMIT ? "
+			args = append(args, q.limitCount)
+		}
+
+		orderedSubjects += ") "
+	}
+
+	qs = "SELECT subject, predicate, value FROM ( WITH " +
+		subjects +
+		orderedSubjects +
+		`SELECT subject, predicate, value, ordering FROM ` + name + `
+INNER JOIN ordered_subjects ON subject = ordered_subjects.found
+ORDER BY ordering`
+	if !q.ascending {
+		qs += " DESC "
+	}
+	qs += ")"
+	return
+}
+
+type OrderedQuery struct {
+	predicate string
+	ascending bool
+	wheres    []whereClause
+}
+
+func Ascending(on string) *OrderedQuery {
+	return &OrderedQuery{
+		ascending: true,
+		predicate: on,
+	}
+}
+
+func Descending(on string) *OrderedQuery {
+	return &OrderedQuery{
+		predicate: on,
+	}
 }
 
 // Where adds a condition to the query so that only triples for subjects that
@@ -141,16 +223,11 @@ func (q *OrderedQuery) build(name string) (qs string, args []interface{}) {
 			orderedSubjects += "INNER JOIN subjects ON subject = subjects.found "
 		}
 		if q.ascending {
-			orderedSubjects += "WHERE predicate = ? AND value > ? ORDER BY value "
+			orderedSubjects += "WHERE predicate = ? ORDER BY value "
 		} else {
-			orderedSubjects += "WHERE predicate = ? AND value < ? ORDER BY value DESC "
+			orderedSubjects += "WHERE predicate = ? ORDER BY value DESC "
 		}
-		args = append(args, q.predicate, q.value)
-
-		if q.limitCount > 0 {
-			orderedSubjects += "LIMIT ? "
-			args = append(args, q.limitCount)
-		}
+		args = append(args, q.predicate)
 
 		orderedSubjects += ") "
 	}

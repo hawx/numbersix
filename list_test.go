@@ -353,3 +353,175 @@ func TestAfterWhereLimit(t *testing.T) {
 		}
 	}
 }
+
+func TestAscending(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+
+	db.Set("0", "title", "A null post")
+	db.Set("0", "tag", "good")
+	db.Set("0", "published", time.Date(2019, time.January, 3, 12, 0, 0, 0, time.UTC))
+
+	// out of order
+	db.Set("1", "title", "A post")
+	db.Set("1", "tag", "good")
+	db.Set("1", "tag", "other")
+	db.Set("1", "published", time.Date(2019, time.January, 7, 12, 0, 0, 0, time.UTC))
+
+	db.Set("2", "title", "Another post")
+	db.Set("2", "tag", "good")
+	db.Set("2", "published", time.Date(2019, time.January, 5, 12, 0, 0, 0, time.UTC))
+
+	// no tag
+	db.Set("3", "title", "A bad post")
+	db.Set("3", "tag", "bad")
+	db.Set("3", "published", time.Date(2019, time.January, 8, 12, 0, 0, 0, time.UTC))
+
+	triples, err := db.List(
+		Ascending("published").
+			Where("tag", "good"),
+	)
+
+	assert.Nil(err)
+	if assert.Len(triples, 10) {
+
+		type Post struct {
+			ID        string
+			Title     string
+			Tags      []string
+			Published time.Time
+		}
+
+		var posts []Post
+		post := Post{ID: triples[0].Subject}
+
+		for _, triple := range triples {
+			if triple.Subject != post.ID {
+				posts = append(posts, post)
+				post = Post{ID: triple.Subject}
+			}
+
+			switch triple.Predicate {
+			case "title":
+				triple.Value(&post.Title)
+			case "tag":
+				var tag string
+				triple.Value(&tag)
+				post.Tags = append(post.Tags, tag)
+			case "published":
+				triple.Value(&post.Published)
+			}
+		}
+		posts = append(posts, post)
+
+		if assert.Len(posts, 3) {
+			assert.Equal(Post{
+				ID:        "1",
+				Title:     "A post",
+				Tags:      []string{"good", "other"},
+				Published: time.Date(2019, time.January, 7, 12, 0, 0, 0, time.UTC),
+			}, posts[2])
+
+			assert.Equal(Post{
+				ID:        "2",
+				Title:     "Another post",
+				Tags:      []string{"good"},
+				Published: time.Date(2019, time.January, 5, 12, 0, 0, 0, time.UTC),
+			}, posts[1])
+
+			assert.Equal(Post{
+				ID:        "0",
+				Title:     "A null post",
+				Tags:      []string{"good"},
+				Published: time.Date(2019, time.January, 3, 12, 0, 0, 0, time.UTC),
+			}, posts[0])
+		}
+	}
+}
+
+func TestDescending(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+
+	db.Set("0", "title", "A null post")
+	db.Set("0", "tag", "good")
+	db.Set("0", "published", time.Date(2019, time.January, 3, 12, 0, 0, 0, time.UTC))
+
+	// out of order
+	db.Set("1", "title", "A post")
+	db.Set("1", "tag", "good")
+	db.Set("1", "tag", "other")
+	db.Set("1", "published", time.Date(2019, time.January, 7, 12, 0, 0, 0, time.UTC))
+
+	db.Set("2", "title", "Another post")
+	db.Set("2", "tag", "good")
+	db.Set("2", "published", time.Date(2019, time.January, 5, 12, 0, 0, 0, time.UTC))
+
+	// no tag
+	db.Set("3", "title", "A bad post")
+	db.Set("3", "tag", "bad")
+	db.Set("3", "published", time.Date(2019, time.January, 8, 12, 0, 0, 0, time.UTC))
+
+	triples, err := db.List(
+		Descending("published").
+			Where("tag", "good"),
+	)
+
+	assert.Nil(err)
+	if assert.Len(triples, 10) {
+
+		type Post struct {
+			ID        string
+			Title     string
+			Tags      []string
+			Published time.Time
+		}
+
+		var posts []Post
+		post := Post{ID: triples[0].Subject}
+
+		for _, triple := range triples {
+			if triple.Subject != post.ID {
+				posts = append(posts, post)
+				post = Post{ID: triple.Subject}
+			}
+
+			switch triple.Predicate {
+			case "title":
+				triple.Value(&post.Title)
+			case "tag":
+				var tag string
+				triple.Value(&tag)
+				post.Tags = append(post.Tags, tag)
+			case "published":
+				triple.Value(&post.Published)
+			}
+		}
+		posts = append(posts, post)
+
+		if assert.Len(posts, 3) {
+			assert.Equal(Post{
+				ID:        "1",
+				Title:     "A post",
+				Tags:      []string{"good", "other"},
+				Published: time.Date(2019, time.January, 7, 12, 0, 0, 0, time.UTC),
+			}, posts[0])
+
+			assert.Equal(Post{
+				ID:        "2",
+				Title:     "Another post",
+				Tags:      []string{"good"},
+				Published: time.Date(2019, time.January, 5, 12, 0, 0, 0, time.UTC),
+			}, posts[1])
+
+			assert.Equal(Post{
+				ID:        "0",
+				Title:     "A null post",
+				Tags:      []string{"good"},
+				Published: time.Date(2019, time.January, 3, 12, 0, 0, 0, time.UTC),
+			}, posts[2])
+		}
+	}
+}
