@@ -85,7 +85,7 @@ func assertTriples(t *testing.T, triples []Triple, pairs []pair) bool {
 	return true
 }
 
-func TestQuery(t *testing.T) {
+func TestListAll(t *testing.T) {
 	assert := assert.New(t)
 
 	db, _ := Open("file::memory:")
@@ -107,7 +107,7 @@ func TestQuery(t *testing.T) {
 	})
 }
 
-func TestQueryAbout(t *testing.T) {
+func TestListAbout(t *testing.T) {
 	assert := assert.New(t)
 
 	db, _ := Open("file::memory:")
@@ -127,7 +127,7 @@ func TestQueryAbout(t *testing.T) {
 	})
 }
 
-func TestQueryAboutAndWhere(t *testing.T) {
+func TestListAboutAndWhere(t *testing.T) {
 	assert := assert.New(t)
 
 	db, _ := Open("file::memory:")
@@ -151,7 +151,45 @@ func TestQueryAboutAndWhere(t *testing.T) {
 	})
 }
 
-func TestOrdered(t *testing.T) {
+func TestAnyAbout(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+
+	db.Set("1", "name", "John")
+	db.Set("1", "age", 25)
+	db.Set("2", "name", "Jane")
+	db.Set("2", "age", 23)
+
+	ok, err := db.Any(About("1"))
+	assert.Nil(err)
+	assert.True(ok)
+
+	ok, err = db.Any(About("3"))
+	assert.Nil(err)
+	assert.False(ok)
+}
+
+func TestAnyAboutAndWhere(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+
+	db.Set("1", "name", "John")
+	db.Set("1", "age", 25)
+	db.Set("2", "name", "Jane")
+	db.Set("2", "age", 23)
+
+	ok, err := db.Any(About("1").Where("age", 24))
+	assert.Nil(err)
+	assert.False(ok)
+
+	ok, err = db.Any(About("1").Where("age", 25))
+	assert.Nil(err)
+	assert.True(ok)
+}
+
+func TestListOrdered(t *testing.T) {
 	db, _ := Open("file::memory:")
 
 	db.Set("2", "age", 25)
@@ -269,7 +307,7 @@ func TestOrdered(t *testing.T) {
 	})
 }
 
-func TestAfterWhereLimit(t *testing.T) {
+func TestListAfterWhereLimit(t *testing.T) {
 	assert := assert.New(t)
 
 	db, _ := Open("file::memory:")
@@ -378,7 +416,7 @@ func TestAfterWhereLimit(t *testing.T) {
 	}
 }
 
-func TestAscending(t *testing.T) {
+func TestListAscending(t *testing.T) {
 	assert := assert.New(t)
 
 	db, _ := Open("file::memory:")
@@ -464,7 +502,7 @@ func TestAscending(t *testing.T) {
 	}
 }
 
-func TestDescending(t *testing.T) {
+func TestListDescending(t *testing.T) {
 	assert := assert.New(t)
 
 	db, _ := Open("file::memory:")

@@ -1,5 +1,7 @@
 package numbersix
 
+import "database/sql"
+
 // List returns all triples that match the query provided.
 func (d *DB) List(query Query) (results []Triple, err error) {
 	qs, args := query.build(d.name)
@@ -21,9 +23,32 @@ func (d *DB) List(query Query) (results []Triple, err error) {
 	return
 }
 
+// Any returns true if there exists a triple matching the query provided.
+func (d *DB) Any(query AnyQuery) (ok bool, err error) {
+	qs, args := query.buildAny(d.name)
+
+	row := d.db.QueryRow(qs, args...)
+
+	var i int
+	if err = row.Scan(&i); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return i == 1, nil
+}
+
 // Query defines conditions for triples that List should return.
 type Query interface {
 	build(name string) (string, []interface{})
+}
+
+// AnyQuery defines conditions for triples that Any should match.
+type AnyQuery interface {
+	buildAny(name string) (string, []interface{})
 }
 
 type AllQuery struct{}
@@ -83,6 +108,29 @@ func (q *AboutQuery) build(name string) (qs string, args []interface{}) {
 	}
 
 	return "SELECT subject, predicate, value FROM " + name + " WHERE subject = ? ORDER BY predicate", []interface{}{q.subject}
+}
+
+func (q *AboutQuery) buildAny(name string) (qs string, args []interface{}) {
+	if len(q.wheres) > 0 {
+		subjects := "WITH subjects(found) AS ( "
+
+		for i, where := range q.wheres {
+			if i > 0 {
+				subjects += " INTERSECT "
+			}
+			subjects += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ? AND value = ?"
+			args = append(args, where.predicate, where.value)
+		}
+
+		subjects += " ) "
+
+		return subjects +
+			"SELECT 1 FROM " + name +
+			" INNER JOIN subjects ON subject = subjects.found" +
+			" WHERE subject = ?", append(args, q.subject)
+	}
+
+	return "SELECT 1 FROM " + name + " WHERE subject = ?", []interface{}{q.subject}
 }
 
 type BoundOrderedQuery struct {
