@@ -37,8 +37,11 @@ func (q *AllQuery) build(name string) (qs string, args []interface{}) {
 	return "SELECT subject, predicate, value FROM " + name + " ORDER BY subject, predicate", []interface{}{}
 }
 
+type whereClause struct{ predicate, value string }
+
 type AboutQuery struct {
 	subject string
+	wheres  []whereClause
 }
 
 // About is a query that returns all triples with a particular subject.
@@ -46,11 +49,41 @@ func About(subject string) *AboutQuery {
 	return &AboutQuery{subject: subject}
 }
 
-func (q *AboutQuery) build(name string) (qs string, args []interface{}) {
-	return "SELECT subject, predicate, value FROM " + name + " WHERE subject = ? ORDER BY predicate", []interface{}{q.subject}
+// Where adds a condition to the query so that only triples for subjects that
+// have the predicate and value are returned.
+func (q *AboutQuery) Where(predicate string, value interface{}) *AboutQuery {
+	v, _ := marshal(value)
+
+	q.wheres = append(q.wheres, whereClause{
+		predicate: predicate,
+		value:     v,
+	})
+
+	return q
 }
 
-type whereClause struct{ predicate, value string }
+func (q *AboutQuery) build(name string) (qs string, args []interface{}) {
+	if len(q.wheres) > 0 {
+		subjects := "WITH subjects(found) AS ( "
+
+		for i, where := range q.wheres {
+			if i > 0 {
+				subjects += " INTERSECT "
+			}
+			subjects += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ? AND value = ?"
+			args = append(args, where.predicate, where.value)
+		}
+
+		subjects += " ) "
+
+		return subjects +
+			"SELECT subject, predicate, value FROM " + name +
+			" INNER JOIN subjects ON subject = subjects.found" +
+			" WHERE subject = ?", append(args, q.subject)
+	}
+
+	return "SELECT subject, predicate, value FROM " + name + " WHERE subject = ? ORDER BY predicate", []interface{}{q.subject}
+}
 
 type BoundOrderedQuery struct {
 	predicate, value string
