@@ -133,6 +133,46 @@ func (q *AboutQuery) buildAny(name string) (qs string, args []interface{}) {
 	return "SELECT 1 FROM " + name + " WHERE subject = ?", []interface{}{q.subject}
 }
 
+type WhereQuery struct {
+	wheres []whereClause
+}
+
+// Where is a query that returns all triples with a particular predicate-value.
+func Where(predicate string, value interface{}) *WhereQuery {
+	q := &WhereQuery{}
+
+	return q.Where(predicate, value)
+}
+
+// Where adds a condition to the query so that only triples for subjects that
+// have the predicate and value are returned.
+func (q *WhereQuery) Where(predicate string, value interface{}) *WhereQuery {
+	v, _ := marshal(value)
+
+	q.wheres = append(q.wheres, whereClause{
+		predicate: predicate,
+		value:     v,
+	})
+
+	return q
+}
+
+func (q *WhereQuery) build(name string) (qs string, args []interface{}) {
+	qs = "WITH subjects(found) AS ( "
+
+	for i, where := range q.wheres {
+		if i > 0 {
+			qs += " INTERSECT "
+		}
+		qs += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ? AND value = ?"
+		args = append(args, where.predicate, where.value)
+	}
+
+	qs += " ) SELECT subject, predicate, value FROM " + name + " INNER JOIN subjects ON subject = subjects.found"
+
+	return
+}
+
 type BoundOrderedQuery struct {
 	predicate, value string
 	ascending        bool
