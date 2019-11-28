@@ -171,6 +171,51 @@ func TestQueryWhere(t *testing.T) {
 	})
 }
 
+func TestQueryBegins(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+
+	db.Set("1", "name", "John")
+	db.Set("1", "age", 25)
+	db.Set("2", "name", "Jane")
+	db.Set("2", "age", 23)
+	db.Set("3", "name", "George")
+	db.Set("3", "age", 26)
+
+	triples, err := db.List(Begins("name", "J"))
+	assert.Nil(err)
+	assert.Len(triples, 4)
+
+	assertTriples(t, triples, []pair{
+		{"1", "age"},
+		{"1", "name"},
+		{"2", "age"},
+		{"2", "name"},
+	})
+}
+
+func TestQueryBeginsAndHas(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+
+	db.Set("1", "name", "John")
+	db.Set("2", "name", "Jane")
+	db.Set("2", "age", 23)
+	db.Set("3", "name", "George")
+	db.Set("3", "age", 26)
+
+	triples, err := db.List(Begins("name", "J").Has("age"))
+	assert.Nil(err)
+	assert.Len(triples, 2)
+
+	assertTriples(t, triples, []pair{
+		{"2", "age"},
+		{"2", "name"},
+	})
+}
+
 func TestAnyAbout(t *testing.T) {
 	assert := assert.New(t)
 

@@ -1,6 +1,8 @@
 package numbersix
 
-import "database/sql"
+import (
+	"database/sql"
+)
 
 // List returns all triples that match the query provided.
 func (d *DB) List(query Query) (results []Triple, err error) {
@@ -134,7 +136,9 @@ func (q *AboutQuery) buildAny(name string) (qs string, args []interface{}) {
 }
 
 type WhereQuery struct {
+	begins whereClause
 	wheres []whereClause
+	has    []string
 }
 
 // Where is a query that returns all triples with a particular predicate-value.
@@ -142,6 +146,21 @@ func Where(predicate string, value interface{}) *WhereQuery {
 	q := &WhereQuery{}
 
 	return q.Where(predicate, value)
+}
+
+// Begins is a query that returns all triples with a particular predicate that
+// begins with the value.
+func Begins(predicate string, value interface{}) *WhereQuery {
+	v, _ := marshal(value)
+
+	q := &WhereQuery{
+		begins: whereClause{
+			predicate: predicate,
+			value:     v,
+		},
+	}
+
+	return q
 }
 
 // Where adds a condition to the query so that only triples for subjects that
@@ -157,15 +176,33 @@ func (q *WhereQuery) Where(predicate string, value interface{}) *WhereQuery {
 	return q
 }
 
+// Has adds a condition to the query so that only triples for subjects that have
+// the predicate (with any value) are returned.
+func (q *WhereQuery) Has(predicate string) *WhereQuery {
+	q.has = append(q.has, predicate)
+
+	return q
+}
+
 func (q *WhereQuery) build(name string) (qs string, args []interface{}) {
 	qs = "WITH subjects(found) AS ( "
 
-	for i, where := range q.wheres {
-		if i > 0 {
-			qs += " INTERSECT "
+	if len(q.wheres) > 0 {
+		for i, where := range q.wheres {
+			if i > 0 {
+				qs += " INTERSECT "
+			}
+			qs += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ? AND value = ?"
+			args = append(args, where.predicate, where.value)
 		}
-		qs += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ? AND value = ?"
-		args = append(args, where.predicate, where.value)
+	} else {
+		qs += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ? AND value LIKE ?"
+		args = append(args, q.begins.predicate, q.begins.value[:len(q.begins.value)-1]+"%")
+	}
+
+	for _, has := range q.has {
+		qs += " INTERSECT SELECT DISTINCT subject FROM " + name + " WHERE predicate = ?"
+		args = append(args, has)
 	}
 
 	qs += " ) SELECT subject, predicate, value FROM " + name + " INNER JOIN subjects ON subject = subjects.found"
