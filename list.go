@@ -215,6 +215,7 @@ type BoundOrderedQuery struct {
 	ascending        bool
 	limitCount       int
 	wheres           []whereClause
+	withouts         []string
 }
 
 // After is a query that returns triples for a subject having a triple with the
@@ -276,6 +277,14 @@ func (q *BoundOrderedQuery) Where(predicate string, value interface{}) *BoundOrd
 	return q
 }
 
+// Without adds a condition to the query so that only triples for subjects that
+// do not have the predicate are returned.
+func (q *BoundOrderedQuery) Without(predicate string) *BoundOrderedQuery {
+	q.withouts = append(q.withouts, predicate)
+
+	return q
+}
+
 func (q *BoundOrderedQuery) build(name string) (qs string, args []interface{}) {
 	var subjects string
 	if len(q.wheres) > 0 {
@@ -292,16 +301,38 @@ func (q *BoundOrderedQuery) build(name string) (qs string, args []interface{}) {
 		subjects += " ), "
 	}
 
+	var excludedSubjects string
+	if len(q.withouts) > 0 {
+		excludedSubjects = "excluded_subjects(found) AS ( "
+
+		for i, without := range q.withouts {
+			if i > 0 {
+				excludedSubjects += " INTERSECT "
+			}
+			excludedSubjects += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ?"
+			args = append(args, without)
+		}
+
+		excludedSubjects += " ), "
+	}
+
 	var orderedSubjects string
 	{
 		orderedSubjects = "ordered_subjects(found, ordering) AS ( SELECT DISTINCT subject, value FROM " + name + " "
 		if len(q.wheres) > 0 {
 			orderedSubjects += "INNER JOIN subjects ON subject = subjects.found "
 		}
+
+		where := "WHERE"
+		if len(q.withouts) > 0 {
+			orderedSubjects += "LEFT JOIN excluded_subjects ON subject = excluded_subjects.found WHERE excluded_subjects.found IS NULL "
+			where = "AND"
+		}
+
 		if q.ascending {
-			orderedSubjects += "WHERE predicate = ? AND value > ? ORDER BY value "
+			orderedSubjects += where + " predicate = ? AND value > ? ORDER BY value "
 		} else {
-			orderedSubjects += "WHERE predicate = ? AND value < ? ORDER BY value DESC "
+			orderedSubjects += where + " predicate = ? AND value < ? ORDER BY value DESC "
 		}
 		args = append(args, q.predicate, q.value)
 
@@ -315,6 +346,7 @@ func (q *BoundOrderedQuery) build(name string) (qs string, args []interface{}) {
 
 	qs = "SELECT subject, predicate, value FROM ( WITH " +
 		subjects +
+		excludedSubjects +
 		orderedSubjects +
 		`SELECT subject, predicate, value, ordering FROM ` + name + `
 INNER JOIN ordered_subjects ON subject = ordered_subjects.found

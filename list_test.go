@@ -274,6 +274,7 @@ func TestListOrdered(t *testing.T) {
 
 	db.Set("3", "age", 21)
 	db.Set("3", "tag", "uncool")
+	db.Set("3", "deleted", true)
 
 	db.Set("1", "age", 24)
 
@@ -335,6 +336,7 @@ func TestListOrdered(t *testing.T) {
 
 		assertTriples(t, triples, []pair{
 			{"3", "age"}, // 21
+			{"3", "deleted"},
 			{"3", "tag"},
 			{"7", "age"}, // 22
 			{"7", "tag"},
@@ -362,12 +364,28 @@ func TestListOrdered(t *testing.T) {
 
 		assertTriples(t, triples, []pair{
 			{"3", "age"}, // 21
+			{"3", "deleted"},
 			{"3", "tag"},
 			{"6", "age"}, // 20
 			{"6", "tag"},
 			{"6", "tag"},
 			{"6", "tag"},
 			{"4", "age"}, // 19
+		})
+	})
+
+	t.Run("Before with Limit and Without", func(t *testing.T) {
+		triples, err := db.List(Before("age", 22).Limit(3).Without("deleted"))
+		assert.Nil(t, err)
+
+		assertTriples(t, triples, []pair{
+			{"6", "age"}, // 20
+			{"6", "tag"},
+			{"6", "tag"},
+			{"6", "tag"},
+			{"4", "age"}, // 19
+			{"8", "age"}, // 18
+			{"8", "tag"},
 		})
 	})
 }
