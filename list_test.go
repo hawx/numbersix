@@ -216,6 +216,25 @@ func TestQueryBeginsAndHas(t *testing.T) {
 	})
 }
 
+func TestQueryBeginsAndWithout(t *testing.T) {
+	assert := assert.New(t)
+
+	db, _ := Open("file::memory:")
+
+	db.Set("1", "name", "John")
+	db.Set("2", "name", "Jane")
+	db.Set("2", "age", 23)
+	db.Set("3", "name", "George")
+
+	triples, err := db.List(Begins("name", "G").Without("age"))
+	assert.Nil(err)
+	assert.Len(triples, 1)
+
+	assertTriples(t, triples, []pair{
+		{"3", "name"},
+	})
+}
+
 func TestAnyAbout(t *testing.T) {
 	assert := assert.New(t)
 

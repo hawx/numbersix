@@ -136,9 +136,10 @@ func (q *AboutQuery) buildAny(name string) (qs string, args []interface{}) {
 }
 
 type WhereQuery struct {
-	begins whereClause
-	wheres []whereClause
-	has    []string
+	begins   whereClause
+	wheres   []whereClause
+	has      []string
+	withouts []string
 }
 
 // Where is a query that returns all triples with a particular predicate-value.
@@ -184,6 +185,14 @@ func (q *WhereQuery) Has(predicate string) *WhereQuery {
 	return q
 }
 
+// Without adds a condition to the query so that only triples for subjects that
+// do not have the predicate are returned.
+func (q *WhereQuery) Without(predicate string) *WhereQuery {
+	q.withouts = append(q.withouts, predicate)
+
+	return q
+}
+
 func (q *WhereQuery) build(name string) (qs string, args []interface{}) {
 	qs = "WITH subjects(found) AS ( "
 
@@ -205,7 +214,23 @@ func (q *WhereQuery) build(name string) (qs string, args []interface{}) {
 		args = append(args, has)
 	}
 
+	if len(q.withouts) > 0 {
+		qs += " ), excluded_subjects(found) AS ( "
+
+		for i, without := range q.withouts {
+			if i > 0 {
+				qs += " INTERSECT "
+			}
+			qs += "SELECT DISTINCT subject FROM " + name + " WHERE predicate = ?"
+			args = append(args, without)
+		}
+	}
+
 	qs += " ) SELECT subject, predicate, value FROM " + name + " INNER JOIN subjects ON subject = subjects.found"
+
+	if len(q.withouts) > 0 {
+		qs += " LEFT JOIN excluded_subjects ON subject = excluded_subjects.found WHERE excluded_subjects.found IS NULL"
+	}
 
 	return
 }
